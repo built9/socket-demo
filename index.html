@@ -1,88 +1,98 @@
 <html>
-<head>
-  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
-  <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
-</head>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+  </head>
 
-<body>
-  <div id="app">
-	<button @click='oauth()'>Login with Github</button>
-	<button @click='oauth()'>帐号密码登录</button>
-    
-	<div v-if="userInfo">
-		<ul id='messages'></ul>
-		<input id="m" autocomplete="off">
-		<button @click='submit()'>send</button>
-	</div>
-  </div>
-  <script>
-  </script>
-  <script>
-    axios.interceptors.request.use(
-      config => {
-        const token = window.localStorage.getItem("token");
-        if (token) {
-          // 判断是否存在token，如果存在的话，则每个http header都加上token
-          // Bearer是JWT的认证头部信息
-          config.headers.common["Authorization"] = "Bearer " + token;
-        }
-        return config;
-      },
-      err => {
-        return Promise.reject(err);
-      }
-    );
-    axios.interceptors.response.use(
-      response => {
-        app.logs.push(JSON.stringify(response.data));
-        return response;
-      },
-      err => {
-        app.logs.push(JSON.stringify(response.data));
-        return Promise.reject(err);
-      }
-	);
-	var socket = io()
-	socket.on('chat message',function(msg){
-		console.log(msg)
-		$('#messages').append($('<li>').text(msg))
-	})
-    var app = new Vue({
-      el: "#app",
-      data: {
-        logs: [],
-        userInfo: null
-      },
-      methods: {
-        async oauth() {
-          window.open('/auth/github/login', '_blank')
-          const intervalId = setInterval(() => {
-            console.log("等待认证中..");
-            if (window.localStorage.getItem("authSuccess")) {
-              clearInterval(intervalId);
-              window.localStorage.removeItem("authSuccess");
-              this.getUser()
-            }
-          }, 500);
+  <body>
+    <div id="app">
+      <button @click="oauth()" v-if="!userInfo">Login with Github</button>
+      <button @click="login()" v-if="!userInfo">帐号密码登录</button>
+      <div v-if="userInfo">
+        <ul id="messages">
+          <li v-for="(item,index) in msgList" :key="'item.name'+index">
+            {{item.name+':'+item.msg}}
+          </li>
+        </ul>
+        <input id="m" autocomplete="off" v-model="msg" />
+        <button @click="submit()">send</button>
+      </div>
+    </div>
+    <script></script>
+    <script>
+      axios.interceptors.request.use(
+        config => {
+          const token = window.localStorage.getItem("token");
+          if (token) {
+            // 判断是否存在token，如果存在的话，则每个http header都加上token
+            // Bearer是JWT的认证头部信息
+            config.headers.common["Authorization"] = "Bearer " + token;
+          }
+          return config;
         },
-        async getUser() {
-          const res = await axios.get("/auth/github/userinfo");
-          console.log('res:',res.data)
-          this.userInfo = res.data
-		},
-		async submit() {
-			socket.emit('chat message',$('#m').val())
-			$('#m').val('')
-			return false
+        err => {
+          return Promise.reject(err);
         }
-      }
-	});
-	
-  </script>
-  
-  
-</body>
+      );
+      axios.interceptors.response.use(
+        response => {
+          app.logs.push(JSON.stringify(response.data));
+          return response;
+        },
+        err => {
+          app.logs.push(JSON.stringify(response.data));
+          return Promise.reject(err);
+        }
+      );
 
+      var socket = io();
+      var app = new Vue({
+        el: "#app",
+        data: {
+          logs: [],
+          userInfo: null,
+          msgList: [],
+          msg: ""
+        },
+        created() {
+          socket.on("chat message", msg => {
+            this.msgList.push(JSON.parse(msg));
+          });
+        },
+        methods: {
+          async oauth() {
+            window.open("/auth/github/login", "_blank");
+            const intervalId = setInterval(() => {
+              console.log("等待认证中..");
+              if (window.localStorage.getItem("authSuccess")) {
+                clearInterval(intervalId);
+                window.localStorage.removeItem("authSuccess");
+                this.getUser();
+              }
+            }, 500);
+          },
+          async login() {
+            const res = await axios.get("/login?name=admin&pwd=admin");
+            this.userInfo = res.data;
+          },
+          async getUser() {
+            const res = await axios.get("/auth/github/userinfo");
+            this.userInfo = res.data;
+          },
+          async submit() {
+            socket.emit(
+              "chat message",
+              JSON.stringify({
+                name: this.userInfo.name,
+                msg: this.msg
+              })
+            );
+            this.msg = "";
+            return false;
+          }
+        }
+      });
+    </script>
+  </body>
 </html>
