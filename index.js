@@ -26,6 +26,7 @@ router.get("/auth/github/login", async ctx => {
   })}`;
   ctx.redirect(path);
 });
+
 router.get("/github/oauth/callback", async ctx => {
   const code = ctx.query.code;
   const params = {
